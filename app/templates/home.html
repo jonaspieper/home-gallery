@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Home App – Start{% endblock %}
+{% block content %}
+  <h1>Home App</h1>
+  <p class="muted">Wähle ein Modul:</p>
+  <div class="grid">
+    {% for t in tiles %}
+      <div class="card">
+        <h3><a href="{{ t.href }}">{{ t.title }}</a></h3>
+        <p class="muted">{{ t.desc }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

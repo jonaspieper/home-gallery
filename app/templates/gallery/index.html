@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Galerie{% endblock %}
+{% block content %}
+  <h1>Galerie</h1>
+
+  <p>
+    <a href="{{ url_for('gallery.upload') }}"
+       style="display:inline-block;padding:.5rem 1rem;background:#4cafef;color:white;
+              border-radius:6px;text-decoration:none;">
+      ➕ Neues Foto anlegen
+    </a>
+  </p>
+
+  <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;"></div>
+
+  <!-- Modal -->
+  <dialog id="dlg" style="width:min(720px,95vw);border:none;border-radius:16px;padding:0;">
+    <button onclick="dlg.close()" style="position:absolute;top:.5rem;right:.7rem;font-size:1.4rem;border:none;background:transparent;cursor:pointer;">×</button>
+    <div id="modal" style="padding:1rem;"></div>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='gallery.js') }}"></script>
+{% endblock %}

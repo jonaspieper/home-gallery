@@ -1,0 +1,46 @@
+[
+  {
+    "id": "wohnzimmer-sued-01",
+    "title": "Am See",
+    "year": 2022,
+    "location": "Bayern",
+    "description": "Familienausflug – erster warmer Tag.",
+    "image": "/static/images/family-lake.jpg",
+    "thumb": "/static/thumbs/family-lake.jpg",
+    "tags": [
+      "familie",
+      "landschaft"
+    ],
+    "links": []
+  },
+  {
+    "id": "20250814-153807-ff26cd",
+    "title": "Juli",
+    "year": 2002,
+    "location": "Berlin",
+    "description": "Juli am Posen",
+    "image": "/static/images/20250814-153807-ff26cd.jpg",
+    "thumb": "/static/thumbs/20250814-153807-ff26cd.jpg",
+    "tags": [
+      "Juli"
+    ],
+    "links": [],
+    "created": "2025-08-14T15:38:08.096258"
+  },
+  {
+    "id": "20250814-154611-b3e5cf",
+    "title": "Julian und Jonny",
+    "year": 2023,
+    "location": "Fusion",
+    "description": "Fusion war echt schön",
+    "image": "/static/images/20250814-154611-b3e5cf.jpg",
+    "thumb": "/static/thumbs/20250814-154611-b3e5cf.jpg",
+    "tags": [
+      "Fusion",
+      "Juli",
+      "Jonas"
+    ],
+    "links": [],
+    "created": "2025-08-14T15:46:11.521807"
+  }
+]

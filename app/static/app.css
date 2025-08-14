@@ -1,0 +1,11 @@
+:root { --pad: 16px; --bg:#0b0b0b; --fg:#eee; --muted:#9aa; }
+@media (prefers-color-scheme: light){
+  :root { --bg:#fff; --fg:#111; --muted:#556; }
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+.topbar{position:sticky;top:0;background:rgba(0,0,0,.2);backdrop-filter:saturate(150%) blur(6px);padding:8px 12px}
+nav a{color:var(--fg);text-decoration:none;margin-right:12px;opacity:.9}
+nav a:hover{opacity:1;text-decoration:underline}
+.container{padding:var(--pad);max-width:1000px;margin:0 auto}
+.card{border:1px solid #333;border-radius:12px;padding:12px;margin:12px 0}
+.muted{color:var(--muted)}

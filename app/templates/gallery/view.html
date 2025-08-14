@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title or 'Bild' }} – Galerie{% endblock %}
+{% block content %}
+  <a href="{{ url_for('gallery.index') }}" style="text-decoration:none;">← Zurück</a>
+  <h1 style="margin-top:.5rem">{{ item.title or 'Bild' }}</h1>
+
+  <img src="{{ item.image }}" alt="{{ item.title }}" style="max-width:100%;height:auto;border-radius:12px">
+
+  <div class="card">
+    <p><strong>Jahr:</strong> {{ item.year or '—' }}</p>
+    <p><strong>Ort:</strong> {{ item.location or '—' }}</p>
+    <p><strong>Beschreibung:</strong><br>{{ item.description or '—' }}</p>
+    {% if item.tags %}
+      <p><strong>Tags:</strong>
+        {% for t in item.tags %}
+          <span style="display:inline-block;background:#222;padding:.2rem .5rem;border-radius:999px;margin-right:.3rem;">#{{ t }}</span>
+        {% endfor %}
+      </p>
+    {% endif %}
+    {% if item.created %}
+      <p class="muted">Angelegt: {{ item.created }}</p>
+    {% endif %}
+    <p class="muted">ID: <code>{{ item.id }}</code></p>
+  </div>
+{% endblock %}

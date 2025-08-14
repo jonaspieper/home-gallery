@@ -1,0 +1,30 @@
+# Virtuelle Umgebung
+.venv/
+
+# Bytecode / Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Python-Umgebungen / Secrets
+.env
+.env.*
+*.env
+
+# Generierte Dateien
+app/static/thumbs/*
+app/static/descriptors.json
+
+# Logs
+*.log
+
+
+
+app/static/images/*
+app/static/thumbs/*
+!app/static/images/.gitkeep
+!app/static/thumbs/.gitkeep
+
