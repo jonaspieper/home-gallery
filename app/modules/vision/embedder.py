@@ -52,13 +52,33 @@ def image_to_embedding(img_path: str) -> List[float]:
     out = _l2(out)
     return out.tolist()
 
+# ------- JSON I/O -------
+
 def _load_all() -> List[Dict]:
-    if os.path.exists(EMB_PATH):
-        with open(EMB_PATH, "r", encoding="utf-8") as f: return json.load(f)
-    return []
+    if not os.path.exists(EMB_PATH):
+        return []
+    try:
+        with open(EMB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        # defektes/leeres JSON -> leer zurück
+        return []
 
 def _save_all(recs: List[Dict]):
-    with open(EMB_PATH, "w", encoding="utf-8") as f: json.dump(recs, f, ensure_ascii=False)
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    tmp_path = EMB_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(recs, f, ensure_ascii=False)
+    os.replace(tmp_path, EMB_PATH)
+
+# Öffentliche Helfer (für andere Module)
+def load_all_embeddings() -> List[Dict]:
+    return _load_all()
+
+def save_all_embeddings(recs: List[Dict]):
+    _save_all(recs)
+
+# ------- Ops -------
 
 def upsert_embedding(item_id: str, img_rel_url: str):
     img_abs = os.path.join(ROOT, img_rel_url.lstrip("/"))
@@ -66,24 +86,31 @@ def upsert_embedding(item_id: str, img_rel_url: str):
     recs = _load_all()
     for r in recs:
         if r.get("id") == item_id:
-            r["vector"] = vec; r["image"] = img_rel_url
+            r["vector"] = vec
+            r["image"] = img_rel_url
             break
     else:
         recs.append({"id": item_id, "image": img_rel_url, "vector": vec})
     _save_all(recs)
 
 def reindex_all(images_dir: str = IMAGES_DIR):
+    if not os.path.isdir(images_dir):
+        _save_all([])
+        return
     files = [f for f in sorted(os.listdir(images_dir)) if os.path.isfile(os.path.join(images_dir, f))]
     recs = []
     for fname in files:
         path = os.path.join(images_dir, fname)
         try:
             vec = image_to_embedding(path)
-            recs.append({"id": os.path.splitext(fname)[0], "image": f"/static/images/{fname}", "vector": vec})
+            recs.append({
+                "id": os.path.splitext(fname)[0],
+                "image": f"/static/images/{fname}",
+                "vector": vec
+            })
         except Exception as e:
             print("skip", fname, e)
     _save_all(recs)
-
 
 def embedding_dim_from_model() -> int:
     _load_model()
@@ -91,13 +118,12 @@ def embedding_dim_from_model() -> int:
     return int(shp[-1]) if isinstance(shp, (list, tuple, np.ndarray)) else int(shp)
 
 def embedding_dim_from_file() -> int | None:
-    recs = load_all_embeddings()
+    recs = _load_all()
     for r in recs:
         v = r.get("vector")
         if isinstance(v, list) and v:
             return len(v)
     return None
-
 
 if __name__ == "__main__":
     import argparse
