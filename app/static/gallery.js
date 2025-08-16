@@ -146,11 +146,14 @@ async function mlSearchFromFile(file){
 
   // Beste Cosine-Similarity finden
   let best = {id:null, score:-2};
+  console.log("Ähnlichkeiten:");
   for(const r of embDB){
-    if (r.v.length !== q.length) continue; // falls Modeldimensionen abweichen
+    if (r.v.length !== q.length) continue;
     const s = cosine(q, r.v);
+    console.log(r.id, s.toFixed(4));
     if (s > best.score) best = {id:r.id, score:s};
   }
+  console.log("Best Match:", best.id, "Score:", best.score);
 
   // einfache Schwelle; je nach Daten ~0.7–0.9 probieren
   if(best.id && best.score >= 0.75){
@@ -160,15 +163,6 @@ async function mlSearchFromFile(file){
   }
 }
 
-console.log("Ähnlichkeiten:");
-for(const r of embDB){
-  if (r.v.length !== q.length) continue;
-  const s = cosine(q, r.v);
-  console.log(r.id, s.toFixed(4));
-  if (s > best.score) best = {id:r.id, score:s};
-}
-
-console.log("Best Match:", best.id, "Score:", best.score);
 
 // Buttons verdrahten
 document.getElementById('ml-snap')?.addEventListener('click', ()=>{
