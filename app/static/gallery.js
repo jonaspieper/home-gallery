@@ -124,7 +124,8 @@ async function fileToTensor(file){
 async function embedImageTensor(t){
   // MobileNetV2: Feature aus der Logit-Schicht holen
   // 'conv_preds' = 1001-D Klassenlogits. Wir normalisieren auf Einheitslänge.
-  const logits = mobilenetModel.infer(t, 'conv_preds'); // [1,1001]
+  // const logits = mobilenetModel.infer(t, 'conv_preds'); // [1,1001]
+  const logits = mobilenetModel.infer(t, {pooling: 'avg'});
   const v = tf.div(logits, tf.norm(logits));            // L2-Norm
   const arr = await v.data();                            // Float32Array
   tf.dispose([logits, v]);
