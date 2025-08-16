@@ -14,17 +14,16 @@ __pycache__/
 .env.*
 *.env
 
-# Generierte Dateien
-app/static/thumbs/*
-app/static/descriptors.json
-
 # Logs
 *.log
 
+# Generierte Dateien
+app/static/data.json
+app/static/embeddings.json
+app/static/descriptors.json
 
-
+# Bilder & Thumbnails (nur Platzhalterdateien bleiben im Repo)
 app/static/images/*
 app/static/thumbs/*
 !app/static/images/.gitkeep
 !app/static/thumbs/.gitkeep
-

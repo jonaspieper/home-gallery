@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, current_app, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
+from app.modules.vision.embedder import upsert_embedding
 
 bp = Blueprint("gallery", __name__, url_prefix="/gallery")
 
@@ -94,7 +95,11 @@ def upload():
             with open(data_path, "w", encoding="utf-8") as fjson:
                 json.dump(data, fjson, ensure_ascii=False, indent=2)
 
+            
+            upsert_embedding(unique_id, new_item["image"])
+
             return redirect(url_for("gallery.index", _anchor=unique_id), code=303)
+        
 
     return render_template("gallery/upload.html")
 
@@ -148,3 +153,13 @@ def delete(item_id):
         json.dump(items, fjson, ensure_ascii=False, indent=2)
 
     return jsonify({"success": True})
+
+
+
+@bp.route("/api/embeddings")
+def api_embeddings():
+    emb_path = os.path.join(current_app.static_folder, "embeddings.json")
+    if os.path.exists(emb_path):
+        with open(emb_path, encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    return jsonify([])
