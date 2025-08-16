@@ -4,11 +4,9 @@
   <h1>Galerie</h1>
 
   <p>
-    <a href="{{ url_for('gallery.upload') }}"
-       style="display:inline-block;padding:.5rem 1rem;background:#4cafef;color:white;
-              border-radius:6px;text-decoration:none;">
-      ➕ Neues Foto anlegen
-    </a>
+    <a href="{{ url_for('gallery.upload') }}" class="btn">➕ Neues Foto anlegen</a>
+    <button id="ml-snap" class="btn" style="margin-left:.5rem;">📷 ML-Suche</button>
+    <input id="ml-file" type="file" accept="image/*" capture="environment" style="display:none">
   </p>
 
   <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;"></div>

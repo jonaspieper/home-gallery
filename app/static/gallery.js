@@ -81,5 +81,93 @@ if(data.success){
     alert("Fehler: " + (data.error || "unbekannt"));
 }
 }
+
+// --- Embedding-Suche (ML) ---
+let tfReady = false, mobilenetModel = null, embDB = null;
+
+async function ensureModel(){
+  if (mobilenetModel) return;
+  // mobilenet.load() lädt ein vortrainiertes MobilenetV2
+  mobilenetModel = await mobilenet.load({version: 2, alpha: 1.0});
+  tfReady = true;
+}
+
+async function loadEmbeddings(){
+  if (embDB) return;
+  const res = await fetch('/gallery/api/embeddings');
+  const data = await res.json();
+  // in Float32Array für schnelle Cosine-Berechnung wandeln
+  embDB = data.map(r => ({
+    id: r.id,
+    image: r.image,
+    v: new Float32Array(r.vector)
+  }));
+}
+
+function cosine(a, b){
+  let dot=0, na=0, nb=0;
+  for(let i=0;i<a.length;i++){ const x=a[i], y=b[i]; dot+=x*y; na+=x*x; nb+=y*y; }
+  const denom = Math.sqrt(na)*Math.sqrt(nb) || 1;
+  return dot/denom;
+}
+
+async function fileToTensor(file){
+  const img = await new Promise(resolve => {
+    const im = new Image(); im.onload=()=>resolve(im);
+    im.src = URL.createObjectURL(file);
+  });
+  // tf.browser.fromPixels → [h,w,3], Mobilenet skaliert intern passend
+  const input = tf.browser.fromPixels(img);
+  return input;
+}
+
+async function embedImageTensor(t){
+  // MobileNetV2: Feature aus der Logit-Schicht holen
+  // 'conv_preds' = 1001-D Klassenlogits. Wir normalisieren auf Einheitslänge.
+  const logits = mobilenetModel.infer(t, 'conv_preds'); // [1,1001]
+  const v = tf.div(logits, tf.norm(logits));            // L2-Norm
+  const arr = await v.data();                            // Float32Array
+  tf.dispose([logits, v]);
+  return arr;
+}
+
+async function mlSearchFromFile(file){
+  await ensureModel();
+  await loadEmbeddings();
+  if(!embDB || embDB.length===0){ alert('Keine Embeddings auf dem Server gefunden.'); return; }
+
+  const px = await fileToTensor(file);                   // tf.Tensor3D
+  const input = tf.tidy(()=> tf.image.resizeBilinear(px, [224,224]).toFloat()
+                                .div(127.5).sub(1.0).expandDims()); // [-1,1]
+  px.dispose();
+
+  const q = await embedImageTensor(input);               // Float32Array (1001)
+  input.dispose();
+
+  // Beste Cosine-Similarity finden
+  let best = {id:null, score:-2};
+  for(const r of embDB){
+    if (r.v.length !== q.length) continue; // falls Modeldimensionen abweichen
+    const s = cosine(q, r.v);
+    if (s > best.score) best = {id:r.id, score:s};
+  }
+
+  // einfache Schwelle; je nach Daten ~0.7–0.9 probieren
+  if(best.id && best.score >= 0.75){
+    openById(best.id);
+  } else {
+    alert('Kein eindeutiges Bild erkannt. Versuche ein geraderes/näheres Foto.');
+  }
+}
+
+// Buttons verdrahten
+document.getElementById('ml-snap')?.addEventListener('click', ()=>{
+  document.getElementById('ml-file').click();
+});
+document.getElementById('ml-file')?.addEventListener('change', (e)=>{
+  const f = e.target.files?.[0];
+  if (f) mlSearchFromFile(f);
+});
+
   
 load();
