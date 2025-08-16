@@ -160,6 +160,16 @@ async function mlSearchFromFile(file){
   }
 }
 
+console.log("Ähnlichkeiten:");
+for(const r of embDB){
+  if (r.v.length !== q.length) continue;
+  const s = cosine(q, r.v);
+  console.log(r.id, s.toFixed(4));
+  if (s > best.score) best = {id:r.id, score:s};
+}
+
+console.log("Best Match:", best.id, "Score:", best.score);
+
 // Buttons verdrahten
 document.getElementById('ml-snap')?.addEventListener('click', ()=>{
   document.getElementById('ml-file').click();
