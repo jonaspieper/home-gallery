@@ -1,29 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Neues Foto{% endblock %}
+{% block title %}Neues Foto anlegen{% endblock %}
 {% block content %}
-  <h1>Neues Foto hochladen</h1>
+  <h1>Neues Foto anlegen</h1>
 
-  <form method="post" enctype="multipart/form-data" style="display:grid;gap:1rem;max-width:400px;">
-    <label>Bild:
-      <input type="file" name="photo" accept="image/*" required>
-    </label>
-    <label>Titel:
-      <input type="text" name="title" required>
-    </label>
-    <label>Jahr:
-      <input type="number" name="year" min="0" max="9999">
-    </label>
-    <label>Ort:
-      <input type="text" name="location">
-    </label>
-    <label>Beschreibung:
-      <textarea name="description"></textarea>
-    </label>
-    <label>Tags (Komma-getrennt):
-      <input type="text" name="tags">
-    </label>
-    <button type="submit" style="padding:.5rem 1rem;background:#4cafef;color:white;border:none;border-radius:6px;cursor:pointer;">
-      Speichern
-    </button>
+  <form method="post" enctype="multipart/form-data">
+    <p>
+      <label>Bild:</label><br>
+      <input type="file" name="photo" required>
+    </p>
+    <p>
+      <label>Titel:</label><br>
+      <input type="text" name="title">
+    </p>
+    <p>
+      <label>Künstler:</label><br>
+      <input type="text" name="artist">
+    </p>
+    <p>
+      <label>Jahr:</label><br>
+      <input type="number" name="year">
+    </p>
+    <p>
+      <label>Ort (gemalt):</label><br>
+      <input type="text" name="location_painted">
+    </p>
+    <p>
+      <label>Ort (gekauft):</label><br>
+      <input type="text" name="location_bought">
+    </p>
+    <p>
+      <label>Beschreibung:</label><br>
+      <textarea name="description" rows="3"></textarea>
+    </p>
+    <button type="submit">Speichern</button>
   </form>
 {% endblock %}

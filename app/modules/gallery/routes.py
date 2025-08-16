@@ -23,12 +23,21 @@ def index():
 
 @bp.route("/api/items")
 def api_items():
-    """Liefert die aktuelle data.json zurück"""
+    """Liefert nur Einträge aus data.json zurück, deren Bilddatei noch existiert."""
     data_path = os.path.join(current_app.static_folder, "data.json")
+    valid_items = []
+
     if os.path.exists(data_path):
         with open(data_path, encoding="utf-8") as f:
-            return jsonify(json.load(f))
-    return jsonify([])
+            items = json.load(f)
+
+        for item in items:
+            img_path = item.get("image", "").lstrip("/")
+            img_abs = os.path.join(current_app.root_path, img_path)
+            if os.path.exists(img_abs):
+                valid_items.append(item)
+
+    return jsonify(valid_items)
 
 
 @bp.route("/upload", methods=["GET", "POST"])
@@ -64,8 +73,10 @@ def upload():
             new_item = {
                 "id": unique_id,
                 "title": request.form.get("title"),
+                "artist": request.form.get("artist"),
                 "year": int(request.form.get("year") or 0),
-                "location": request.form.get("location"),
+                "location_painted": request.form.get("location_painted"),
+                "location_bought": request.form.get("location_bought"),
                 "description": request.form.get("description"),
                 "image": f"/static/images/{filename}",
                 "thumb": f"/static/thumbs/{filename}",
@@ -83,7 +94,7 @@ def upload():
             with open(data_path, "w", encoding="utf-8") as fjson:
                 json.dump(data, fjson, ensure_ascii=False, indent=2)
 
-            return redirect(url_for("gallery.index"))
+            return redirect(url_for("gallery.index", _anchor=unique_id), code=303)
 
     return render_template("gallery/upload.html")
 
@@ -103,3 +114,37 @@ def view(item_id):
         return render_template("gallery/not_found.html", item_id=item_id), 404
 
     return render_template("gallery/view.html", item=item)
+
+DELETE_PASSWORD = "9596"
+
+@bp.route("/delete/<item_id>", methods=["POST"])
+def delete(item_id):
+    """Löscht ein Bild nach Passwortprüfung."""
+    pw = request.form.get("password")
+    if pw != DELETE_PASSWORD:
+        return jsonify({"success": False, "error": "Falsches Passwort"}), 403
+
+    data_path = os.path.join(current_app.static_folder, "data.json")
+    items = []
+
+    if os.path.exists(data_path):
+        with open(data_path, encoding="utf-8") as fjson:
+            items = json.load(fjson)
+
+    item = next((x for x in items if x.get("id") == item_id), None)
+    if not item:
+        return jsonify({"success": False, "error": "Item not found"}), 404
+
+    # Dateien löschen
+    for key in ["image", "thumb"]:
+        if item.get(key):
+            img_path = os.path.join(current_app.root_path, item[key].lstrip("/"))
+            if os.path.exists(img_path):
+                os.remove(img_path)
+
+    # Metadaten aktualisieren
+    items = [x for x in items if x.get("id") != item_id]
+    with open(data_path, "w", encoding="utf-8") as fjson:
+        json.dump(items, fjson, ensure_ascii=False, indent=2)
+
+    return jsonify({"success": True})
