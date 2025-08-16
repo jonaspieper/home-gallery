@@ -163,3 +163,19 @@ def api_embeddings():
         with open(emb_path, encoding="utf-8") as f:
             return jsonify(json.load(f))
     return jsonify([])
+
+
+@bp.route("/api/embeddings_info")
+def api_embeddings_info():
+    try:
+        from app.modules.vision.embedder import embedding_dim_from_model, embedding_dim_from_file, load_all_embeddings
+        model_dim = embedding_dim_from_model()
+        file_dim = embedding_dim_from_file()
+        recs = load_all_embeddings()
+        return jsonify({
+            "model_dim": model_dim,
+            "file_dim": file_dim,
+            "count": len(recs)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

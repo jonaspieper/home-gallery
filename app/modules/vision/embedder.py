@@ -84,6 +84,21 @@ def reindex_all(images_dir: str = IMAGES_DIR):
             print("skip", fname, e)
     _save_all(recs)
 
+
+def embedding_dim_from_model() -> int:
+    _load_model()
+    shp = _output["shape"]
+    return int(shp[-1]) if isinstance(shp, (list, tuple, np.ndarray)) else int(shp)
+
+def embedding_dim_from_file() -> int | None:
+    recs = load_all_embeddings()
+    for r in recs:
+        v = r.get("vector")
+        if isinstance(v, list) and v:
+            return len(v)
+    return None
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
