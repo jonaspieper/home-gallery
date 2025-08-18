@@ -1,3 +1,16 @@
+let EXPECTED_LEN = null;
+
+async function loadEmbInfo(){
+  try{
+    const r = await fetch('/gallery/api/embeddings_info');
+    const j = await r.json();
+    EXPECTED_LEN = j.file_dim || j.model_dim || null; // z.B. 1001
+    console.log('EXPECTED_LEN from server:', EXPECTED_LEN);
+  }catch(e){
+    console.warn('embeddings_info fehlgeschlagen', e);
+  }
+}
+
 const state = { data: [], filtered: [] };
 
 async function load(){
@@ -93,16 +106,18 @@ async function ensureModel(){
 }
 
 async function loadEmbeddings(){
-  if (embDB) return;
-  const res = await fetch('/gallery/api/embeddings');
-  const data = await res.json();
-  // in Float32Array für schnelle Cosine-Berechnung wandeln
-  embDB = data.map(r => ({
-    id: r.id,
-    image: r.image,
-    v: new Float32Array(r.vector)
-  }));
-}
+    if (embDB) return;
+    const res = await fetch('/gallery/api/embeddings');
+    const data = await res.json();
+    // zuerst erwartete Länge holen
+    if (!EXPECTED_LEN) await loadEmbInfo();
+    embDB = data.map(r => {
+      const vec = new Float32Array(r.vector);
+      const vAdj = l2norm(normalizeVecTo(vec, EXPECTED_LEN));
+      return { id: r.id, image: r.image, v: vAdj };
+    });
+    console.log('Embeddings geladen:', embDB.length, 'Dim:', embDB[0]?.v.length);
+  }
 
 function cosine(a, b){
   let dot=0, na=0, nb=0;
@@ -121,48 +136,63 @@ async function fileToTensor(file){
   return input;
 }
 
-async function embedImageTensor(t){
-  // MobileNetV2: Feature aus der Logit-Schicht holen
-  // 'conv_preds' = 1001-D Klassenlogits. Wir normalisieren auf Einheitslänge.
-  // const logits = mobilenetModel.infer(t, 'conv_preds'); // [1,1001]
-  const logits = mobilenetModel.infer(t, {pooling: 'avg'});
-  const v = tf.div(logits, tf.norm(logits));            // L2-Norm
-  const arr = await v.data();                            // Float32Array
-  tf.dispose([logits, v]);
-  return arr;
-}
-
-async function mlSearchFromFile(file){
-  await ensureModel();
-  await loadEmbeddings();
-  if(!embDB || embDB.length===0){ alert('Keine Embeddings auf dem Server gefunden.'); return; }
-
-  const px = await fileToTensor(file);                   // tf.Tensor3D
-  const input = tf.tidy(()=> tf.image.resizeBilinear(px, [224,224]).toFloat()
-                                .div(127.5).sub(1.0).expandDims()); // [-1,1]
-  px.dispose();
-
-  const q = await embedImageTensor(input);               // Float32Array (1001)
-  input.dispose();
-
-  // Beste Cosine-Similarity finden
-  let best = {id:null, score:-2};
-  console.log("Ähnlichkeiten:");
-  for(const r of embDB){
-    if (r.v.length !== q.length) continue;
-    const s = cosine(q, r.v);
-    console.log(r.id, s.toFixed(4));
-    if (s > best.score) best = {id:r.id, score:s};
+async function embedImageTensorAdaptive(t){
+    await ensureModel();
+  
+    let arr = null;
+  
+    try {
+      const logits = mobilenetModel.infer(t, 'conv_preds');   // [1,1000 oder 1001]
+      const v = tf.div(logits, tf.norm(logits));
+      arr = await v.data();
+      tf.dispose([logits, v]);
+    } catch(e) {
+      // fallback: average pooling (1280D)
+      const pooled = mobilenetModel.infer(t, { pooling: 'avg' }); 
+      const v2 = tf.div(pooled, tf.norm(pooled));
+      arr = await v2.data();
+      tf.dispose([pooled, v2]);
+    }
+  
+    if (!EXPECTED_LEN) await loadEmbInfo();
+    const adj = l2norm(normalizeVecTo(arr, EXPECTED_LEN));
+    return adj;
   }
-  console.log("Best Match:", best.id, "Score:", best.score);
+  
 
-  // einfache Schwelle; je nach Daten ~0.7–0.9 probieren
-  if(best.id && best.score >= 0.75){
-    openById(best.id);
-  } else {
-    alert('Kein eindeutiges Bild erkannt. Versuche ein geraderes/näheres Foto.');
+  async function mlSearchFromFile(file){
+    await ensureModel();
+    await loadEmbeddings();
+    if(!embDB || embDB.length===0){ alert('Keine Embeddings auf dem Server gefunden.'); return; }
+  
+    const px = await fileToTensor(file);
+    const input = tf.tidy(()=> tf.image.resizeBilinear(px, [224,224]).toFloat()
+                                  .div(127.5).sub(1.0).expandDims());
+    px.dispose();
+  
+    const q = await embedImageTensorAdaptive(input);
+    input.dispose();
+  
+    console.log('Query len:', q.length, 'DB len:', embDB[0]?.v.length, 'EXPECTED_LEN:', EXPECTED_LEN);
+  
+    let best = {id:null, score:-2};
+    for(const r of embDB){
+      // Längen sind jetzt gleich – zur Sicherheit:
+      if (r.v.length !== q.length) continue;
+      const s = cosine(q, r.v);
+      // Debug:
+      // console.log(r.id, s.toFixed(4));
+      if (s > best.score) best = {id:r.id, score:s};
+    }
+    console.log('Best:', best.id, 'Score:', best.score);
+  
+    if(best.id && best.score >= 0.70){
+      openById(best.id);
+    } else {
+      alert('Kein Match. Score: '+best.score.toFixed(3));
+    }
   }
-}
+  
 
 
 // Buttons verdrahten
@@ -174,5 +204,28 @@ document.getElementById('ml-file')?.addEventListener('change', (e)=>{
   if (f) mlSearchFromFile(f);
 });
 
+function normalizeVecTo(v, targetLen){
+    if (!targetLen || v.length === targetLen) return v;
+    const arr = Array.from(v);
+    if (v.length < targetLen) {
+      // mit Nullen auffüllen
+      const pad = new Array(targetLen - v.length).fill(0);
+      return new Float32Array(arr.concat(pad));
+    } else {
+      // hart auf Ziel-Länge abschneiden
+      return new Float32Array(arr.slice(0, targetLen));
+    }
+  }
   
+  function l2norm(v){
+    let s=0; for(let i=0;i<v.length;i++) s += v[i]*v[i];
+    const n = Math.sqrt(s) || 1;
+    const out = new Float32Array(v.length);
+    for(let i=0;i<v.length;i++) out[i] = v[i]/n;
+    return out;
+  }
+  
+
+await loadEmbInfo();
+
 load();
