@@ -6,7 +6,7 @@ import numpy as np
 try:
     from tflite_runtime.interpreter import Interpreter
 except ImportError:
-    from tensorflow.lite import Interpreter  # fallback für macOS-Tests (optional)
+    from tensorflow.lite import Interpreter  # fallback für macOS-Tests
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 STATIC_DIR = os.path.join(ROOT, "static")
@@ -17,6 +17,9 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "mobilenet_v2_1.0
 _interpreter = None
 _input = None
 _output = None
+_feature_tensor_index = None  # << neu: merken, falls wir die Feature-Schicht finden
+
+# ---------------- Model handling ----------------
 
 def _load_model():
     global _interpreter, _input, _output
@@ -29,8 +32,33 @@ def _load_model():
     _input = _interpreter.get_input_details()[0]
     _output = _interpreter.get_output_details()[0]
 
+def _find_feature_tensor_index():
+    """Suche eine geeignete Feature-Schicht (1280D) im TFLite-Graph."""
+    global _feature_tensor_index
+    if _feature_tensor_index is not None:
+        return _feature_tensor_index
+    _load_model()
+    candidates = []
+    for td in _interpreter.get_tensor_details():
+        shape = td.get("shape", [])
+        last = int(shape[-1]) if len(shape) else None
+        if last == 1280:  # typische Dimension MobileNetV2 bottleneck
+            name = td.get("name", "").lower()
+            score = 0
+            for key in ("avg", "pool", "global", "feature", "bottleneck"):
+                if key in name:
+                    score += 1
+            candidates.append((score, td))
+    if candidates:
+        candidates.sort(key=lambda x: (-x[0], x[1]["index"]))
+        _feature_tensor_index = candidates[0][1]["index"]
+    else:
+        _feature_tensor_index = None
+    return _feature_tensor_index
+
+# ---------------- Preprocessing ----------------
+
 def _preprocess(img_path: str) -> np.ndarray:
-    # 224x224 RGB, float32 in [-1, 1]
     img = Image.open(img_path).convert("RGB").resize((224, 224))
     arr = np.asarray(img, dtype=np.float32)
     arr = (arr / 127.5) - 1.0
@@ -40,19 +68,33 @@ def _l2(x: np.ndarray) -> np.ndarray:
     n = np.linalg.norm(x)
     return x / (n + 1e-12)
 
+# ---------------- Embedding ----------------
+
 def image_to_embedding(img_path: str) -> List[float]:
+    """Berechne robustes Embedding:
+       - bevorzugt 1280D Feature-Vektor
+       - fallback: Logits (1001D)
+       - immer L2-normalisiert
+    """
     _load_model()
     x = _preprocess(img_path)
-    if _input["dtype"] == np.uint8:  # quantisierte Modelle unterstützen
+    if _input["dtype"] == np.uint8:
         scale, zero = _input["quantization"]
-        x = (x / scale + zero).astype(np.uint8)
+        x = (x / scale + (zero or 0)).astype(np.uint8)
+
     _interpreter.set_tensor(_input["index"], x)
     _interpreter.invoke()
-    out = _interpreter.get_tensor(_output["index"]).squeeze().astype(np.float32)
+
+    feat_idx = _find_feature_tensor_index()
+    if feat_idx is not None:
+        out = _interpreter.get_tensor(feat_idx).squeeze().astype(np.float32)
+    else:
+        out = _interpreter.get_tensor(_output["index"]).squeeze().astype(np.float32)
+
     out = _l2(out)
     return out.tolist()
 
-# ------- JSON I/O -------
+# ---------------- JSON I/O ----------------
 
 def _load_all() -> List[Dict]:
     if not os.path.exists(EMB_PATH):
@@ -61,7 +103,6 @@ def _load_all() -> List[Dict]:
         with open(EMB_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        # defektes/leeres JSON -> leer zurück
         return []
 
 def _save_all(recs: List[Dict]):
@@ -71,14 +112,13 @@ def _save_all(recs: List[Dict]):
         json.dump(recs, f, ensure_ascii=False)
     os.replace(tmp_path, EMB_PATH)
 
-# Öffentliche Helfer (für andere Module)
 def load_all_embeddings() -> List[Dict]:
     return _load_all()
 
 def save_all_embeddings(recs: List[Dict]):
     _save_all(recs)
 
-# ------- Ops -------
+# ---------------- Ops ----------------
 
 def upsert_embedding(item_id: str, img_rel_url: str):
     img_abs = os.path.join(ROOT, img_rel_url.lstrip("/"))
@@ -97,10 +137,11 @@ def reindex_all(images_dir: str = IMAGES_DIR):
     if not os.path.isdir(images_dir):
         _save_all([])
         return
-    files = [f for f in sorted(os.listdir(images_dir)) if os.path.isfile(os.path.join(images_dir, f))]
     recs = []
-    for fname in files:
+    for fname in sorted(os.listdir(images_dir)):
         path = os.path.join(images_dir, fname)
+        if not os.path.isfile(path):
+            continue
         try:
             vec = image_to_embedding(path)
             recs.append({
@@ -114,7 +155,11 @@ def reindex_all(images_dir: str = IMAGES_DIR):
 
 def embedding_dim_from_model() -> int:
     _load_model()
-    shp = _output["shape"]
+    feat_idx = _find_feature_tensor_index()
+    if feat_idx is not None:
+        shp = _interpreter.get_tensor_details()[feat_idx]["shape"]
+    else:
+        shp = _output["shape"]
     return int(shp[-1]) if isinstance(shp, (list, tuple, np.ndarray)) else int(shp)
 
 def embedding_dim_from_file() -> int | None:
@@ -125,15 +170,16 @@ def embedding_dim_from_file() -> int | None:
             return len(v)
     return None
 
+# ---------------- Similarity ----------------
 
 def cosine(a, b):
-    """Cosine similarity zwischen zwei Vektoren a und b."""
-    import numpy as np
     a = np.array(a, dtype=np.float32)
     b = np.array(b, dtype=np.float32)
     dot = float(np.dot(a, b))
     denom = np.linalg.norm(a) * np.linalg.norm(b) or 1.0
     return dot / denom
+
+# ---------------- CLI ----------------
 
 if __name__ == "__main__":
     import argparse
