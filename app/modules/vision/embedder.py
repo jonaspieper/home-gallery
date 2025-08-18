@@ -125,6 +125,16 @@ def embedding_dim_from_file() -> int | None:
             return len(v)
     return None
 
+
+def cosine(a, b):
+    """Cosine similarity zwischen zwei Vektoren a und b."""
+    import numpy as np
+    a = np.array(a, dtype=np.float32)
+    b = np.array(b, dtype=np.float32)
+    dot = float(np.dot(a, b))
+    denom = np.linalg.norm(a) * np.linalg.norm(b) or 1.0
+    return dot / denom
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()

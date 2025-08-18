@@ -5,12 +5,16 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, current_app, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
-from app.modules.vision.embedder import upsert_embedding
+from app.modules.vision.embedder import upsert_embedding, image_to_embedding, _load_all, cosine
 
 bp = Blueprint("gallery", __name__, url_prefix="/gallery")
 
 UPLOAD_FOLDER = "app/static/images"
 THUMB_FOLDER = "app/static/thumbs"
+
+
+UPLOAD_TMP = os.path.join("app", "static", "tmp")
+os.makedirs(UPLOAD_TMP, exist_ok=True)
 
 # Maximale Abmessungen für Thumbnails & Bilder
 THUMB_SIZE = (300, 300)
@@ -179,3 +183,47 @@ def api_embeddings_info():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@bp.route("/search", methods=["POST"])
+def search():
+    """
+    Nimmt ein hochgeladenes Bild, berechnet Embedding (Server),
+    vergleicht gegen Embedding-DB und gibt bestes Match zurück.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "no file"}), 400
+
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "empty filename"}), 400
+
+    # Temporär speichern
+    fname = secure_filename(f.filename)
+    tmp_path = os.path.join(UPLOAD_TMP, f"{uuid.uuid4().hex}_{fname}")
+    f.save(tmp_path)
+
+    try:
+        qvec = image_to_embedding(tmp_path)
+    except Exception as e:
+        os.remove(tmp_path)
+        return jsonify({"error": f"embedding failed: {e}"}), 500
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    # DB laden
+    db = _load_all()
+    if not db:
+        return jsonify({"error": "no embeddings in DB"}), 500
+
+    # Cosine Similarities
+    best = {"id": None, "score": -2}
+    for r in db:
+        v = r.get("vector")
+        if not v: continue
+        s = cosine(qvec, v)
+        if s > best["score"]:
+            best = {"id": r["id"], "score": float(s), "image": r["image"]}
+
+    return jsonify(best)

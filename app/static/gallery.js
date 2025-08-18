@@ -159,39 +159,27 @@ async function embedImageTensorAdaptive(t){
     return adj;
   }
   
-
-  async function mlSearchFromFile(file){
-    await ensureModel();
-    await loadEmbeddings();
-    if(!embDB || embDB.length===0){ alert('Keine Embeddings auf dem Server gefunden.'); return; }
+async function mlSearchFromFile(file){
+    const formData = new FormData();
+    formData.append("file", file);
   
-    const px = await fileToTensor(file);
-    const input = tf.tidy(()=> tf.image.resizeBilinear(px, [224,224]).toFloat()
-                                  .div(127.5).sub(1.0).expandDims());
-    px.dispose();
+    const res = await fetch("/gallery/search", { method: "POST", body: formData });
+    const j = await res.json();
   
-    const q = await embedImageTensorAdaptive(input);
-    input.dispose();
-  
-    console.log('Query len:', q.length, 'DB len:', embDB[0]?.v.length, 'EXPECTED_LEN:', EXPECTED_LEN);
-  
-    let best = {id:null, score:-2};
-    for(const r of embDB){
-      // Längen sind jetzt gleich – zur Sicherheit:
-      if (r.v.length !== q.length) continue;
-      const s = cosine(q, r.v);
-      // Debug:
-      // console.log(r.id, s.toFixed(4));
-      if (s > best.score) best = {id:r.id, score:s};
+    if(j.error){
+      alert("Fehler: " + j.error);
+      return;
     }
-    console.log('Best:', best.id, 'Score:', best.score);
   
-    if(best.id && best.score >= 0.70){
-      openById(best.id);
+    console.log("Server-Suche:", j);
+  
+    if(j.id && j.score >= 0.7){
+      openById(j.id);
     } else {
-      alert('Kein Match. Score: '+best.score.toFixed(3));
+      alert("Kein Match gefunden. Score: " + j.score.toFixed(3));
     }
   }
+   
   
 
 function normalizeVecTo(v, targetLen){
