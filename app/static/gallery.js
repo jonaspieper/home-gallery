@@ -194,16 +194,6 @@ async function embedImageTensorAdaptive(t){
   }
   
 
-
-// Buttons verdrahten
-document.getElementById('ml-snap')?.addEventListener('click', ()=>{
-  document.getElementById('ml-file').click();
-});
-document.getElementById('ml-file')?.addEventListener('change', (e)=>{
-  const f = e.target.files?.[0];
-  if (f) mlSearchFromFile(f);
-});
-
 function normalizeVecTo(v, targetLen){
     if (!targetLen || v.length === targetLen) return v;
     const arr = Array.from(v);
@@ -226,6 +216,14 @@ function normalizeVecTo(v, targetLen){
   }
   
 
-await loadEmbInfo();
-
-load();
+// Buttons verdrahten
+document.getElementById('ml-snap')?.addEventListener('click', ()=>{
+    document.getElementById('ml-file').click();
+  });
+  document.getElementById('ml-file')?.addEventListener('change', (e)=>{
+    const f = e.target.files?.[0];
+    if (f) mlSearchFromFile(f);
+  });
+  
+  // Start
+  loadEmbInfo().then(()=> load());  
