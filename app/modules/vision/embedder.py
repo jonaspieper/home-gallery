@@ -71,11 +71,7 @@ def _l2(x: np.ndarray) -> np.ndarray:
 # ---------------- Embedding ----------------
 
 def image_to_embedding(img_path: str) -> List[float]:
-    """Berechne robustes Embedding:
-       - bevorzugt 1280D Feature-Vektor
-       - fallback: Logits (1001D)
-       - immer L2-normalisiert
-    """
+    """Berechne robustes Embedding: Feature (1280D) oder Fallback Logits (1001D)."""
     _load_model()
     x = _preprocess(img_path)
     if _input["dtype"] == np.uint8:
@@ -85,14 +81,18 @@ def image_to_embedding(img_path: str) -> List[float]:
     _interpreter.set_tensor(_input["index"], x)
     _interpreter.invoke()
 
+    vec = None
     feat_idx = _find_feature_tensor_index()
     if feat_idx is not None:
-        out = _interpreter.get_tensor(feat_idx).squeeze().astype(np.float32)
-    else:
-        out = _interpreter.get_tensor(_output["index"]).squeeze().astype(np.float32)
+        try:
+            vec = _interpreter.get_tensor(feat_idx).squeeze().astype(np.float32)
+        except Exception as e:
+            print("⚠️ Feature tensor not accessible, fallback to logits:", e)
 
-    out = _l2(out)
-    return out.tolist()
+    if vec is None:
+        vec = _interpreter.get_tensor(_output["index"]).squeeze().astype(np.float32)
+
+    return _l2(vec).tolist()
 
 # ---------------- JSON I/O ----------------
 
