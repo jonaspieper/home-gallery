@@ -12,7 +12,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 STATIC_DIR = os.path.join(ROOT, "static")
 IMAGES_DIR = os.path.join(STATIC_DIR, "images")
 EMB_PATH = os.path.join(STATIC_DIR, "embeddings.json")
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "mobilenet_v2_1.0_224.tflite")
+
+# Für MobileNetV2 Feature-Vektor:
+#MODEL_PATH = os.path.join(os.path.dirname(__file__),
+#                          "models", "mobilenet_v2_1.0_224_feature_vector.tflite")
+#MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "mobilenet_v2_1.0_224.tflite")
+
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "models",
+    "mobilenet_v2_1.0_224_feature_vector.tflite"
+)
 
 _interpreter = None
 _input = None
